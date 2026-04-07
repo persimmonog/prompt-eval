@@ -1,0 +1,2235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt Eval</title>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --surface2: #f8f9fb;
+    --surface3: #eceff3;
+    --border: #d7dce3;
+    --accent: #4b5563;
+    --accent2: #6b7280;
+    --accent3: #2563eb;
+    --text: #1f2937;
+    --text2: #4b5563;
+    --text3: #6b7280;
+    --pass: #2e7d32;
+    --fail: #c62828;
+    --warn: #b26a00;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .logo-tag { display: none; }
+
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .api-key-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: calc(100vh - 57px);
+  }
+
+  .sidebar {
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    background: var(--surface);
+  }
+
+  .sidebar-section { margin-bottom: 28px; }
+
+  .sidebar-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: var(--text3);
+    padding: 0 20px 8px;
+  }
+
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    color: var(--text2);
+  }
+
+  .step-item:hover { background: var(--surface2); }
+
+  .step-item.active {
+    background: #eef2f7;
+    border-left-color: #9aa4b2;
+    color: var(--text);
+  }
+
+  .step-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+    color: var(--text2);
+  }
+
+  .step-item.active .step-num,
+  .step-item.done .step-num {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+  }
+
+  .step-item.done .step-num::after { content: '✓'; }
+  .step-item.done .step-num span { display: none; }
+
+  .step-name {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .score-board {
+    margin: 0 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+  }
+
+  .score-board-title {
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 12px;
+  }
+
+  .score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .score-label {
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .score-val {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .score-bar {
+    height: 4px;
+    background: var(--surface3);
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+
+  .score-fill {
+    height: 100%;
+    border-radius: 2px;
+  }
+
+  .main-area {
+    padding: 28px 32px;
+    overflow-y: auto;
+  }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .panel-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .panel-desc {
+    color: var(--text3);
+    font-size: 13px;
+    margin-top: 4px;
+    line-height: 1.6;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .card-sub {
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  label {
+    font-size: 12px;
+    color: var(--text3);
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  textarea,
+  input[type="text"],
+  input[type="password"],
+  input[type="number"],
+  select {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 10px 12px;
+    outline: none;
+    resize: vertical;
+  }
+
+  textarea:focus,
+  input[type="text"]:focus,
+  input[type="password"]:focus,
+  input[type="number"]:focus,
+  select:focus {
+    border-color: #94a3b8;
+  }
+
+  textarea {
+    line-height: 1.6;
+    min-height: 80px;
+  }
+
+  select {
+    cursor: pointer;
+    background: var(--surface);
+  }
+
+  .input-group { margin-bottom: 14px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .btn-primary {
+    background: #4b5563;
+    color: #ffffff;
+  }
+
+  .btn-primary:hover { background: #374151; }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text2);
+    border-color: var(--border);
+  }
+
+  .btn-secondary:hover { background: var(--surface2); color: var(--text); }
+
+  .btn-danger {
+    background: var(--surface);
+    color: var(--fail);
+    border-color: #e5b7b7;
+  }
+
+  .btn-danger:hover { background: #fff6f6; }
+
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .tag-pass { background: #edf7ee; color: var(--pass); border: 1px solid #cfe6d2; }
+  .tag-fail { background: #fdf0f0; color: var(--fail); border: 1px solid #f2caca; }
+  .tag-partial { background: #fff7e8; color: var(--warn); border: 1px solid #ecd6a5; }
+  .tag-running { background: #eef2f7; color: var(--accent); border: 1px solid var(--border); }
+
+  .test-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  .test-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    color: var(--text3);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .test-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    font-size: 13px;
+  }
+
+  .test-table tr:hover td { background: #fafbfc; }
+  .test-table .cell-input { color: var(--text2); max-width: 300px; }
+  .test-table .cell-golden { color: var(--text2); max-width: 280px; }
+  .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; display: block; }
+
+  .result-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .result-item.pass { border-left: 3px solid var(--pass); }
+  .result-item.fail { border-left: 3px solid var(--fail); }
+  .result-item.partial { border-left: 3px solid var(--warn); }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .result-header:hover { background: var(--surface2); }
+
+  .result-toggle {
+    color: var(--text3);
+    font-size: 10px;
+  }
+
+  .result-toggle.open { transform: rotate(90deg); display: inline-block; }
+
+  .result-body { padding: 0 16px 16px; display: none; }
+  .result-body.open { display: block; }
+
+  .result-col-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .result-col {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+  }
+
+  .result-col-title {
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 8px;
+  }
+
+  .result-col p {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text2);
+    white-space: pre-wrap;
+  }
+
+  .result-score-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--surface2);
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  .mini-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--surface3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .mini-fill {
+    height: 100%;
+    border-radius: 2px;
+  }
+
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .compare-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .compare-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .compare-card {
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 260px;
+  }
+
+  .compare-card textarea,
+  .compare-card .compare-prompt-display {
+    flex: 1;
+  }
+
+  .compare-prompt-display {
+    min-height: 170px;
+  }
+
+  .compare-actions {
+    margin-bottom: 0;
+    min-height: 34px;
+    align-items: center;
+  }
+
+  .compare-actions-empty {
+    visibility: hidden;
+  }
+
+  .compare-metrics {
+    margin-bottom: 0;
+  }
+
+  .metrics-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+
+  .metric-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    text-align: center;
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .metric-num {
+    font-size: 28px;
+    font-weight: 600;
+  }
+
+  .metric-num.good { color: var(--pass); }
+  .metric-num.bad { color: var(--fail); }
+  .metric-num.neutral { color: var(--text); }
+
+  .metric-label {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #d1d5db;
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 10px 16px;
+    background: #111827;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #ffffff;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
+  }
+
+  .version-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c5cad3; border-radius: 4px; }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .result-col-row,
+    .compare-grid { grid-template-columns: 1fr; }
+    .main-area { padding: 20px; }
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 0;
+    color: var(--text3);
+  }
+
+  .empty-icon { font-size: 36px; margin-bottom: 12px; }
+  .empty-title { font-size: 15px; color: var(--text2); margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; }
+
+  code {
+    background: var(--surface3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  .callout {
+    background: #f7f8fa;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+
+  .callout strong { color: var(--text); }
+
+  .config-status {
+    font-size: 12px;
+    color: var(--text3);
+    display: none;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    font-size: 22px;
+    line-height: 1;
+    border: none;
+    background: transparent;
+    color: var(--text3);
+  }
+
+  .icon-btn:hover {
+    background: transparent;
+    color: var(--text);
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.24);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 1000;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    width: min(560px, 100%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  }
+
+  .modal-header,
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+  }
+
+  .modal-header {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .modal-body {
+    padding: 18px;
+  }
+
+  .modal-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .modal-note {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text3);
+    line-height: 1.5;
+  }
+
+  .test-status {
+    min-height: 18px;
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  .test-status.ok { color: var(--pass); }
+  .test-status.error { color: var(--fail); }
+
+  .script-editor {
+    min-height: 260px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .muted-note {
+    font-size: 12px;
+    color: var(--text3);
+    line-height: 1.6;
+  }
+
+  .weight-panel {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .weight-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .weight-value {
+    font-family: var(--mono);
+    color: var(--text);
+  }
+
+  .weight-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .weight-pair {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .weight-slider {
+    width: 100%;
+    margin: 0;
+    accent-color: #4b5563;
+  }
+
+  @media (max-width: 900px) {
+    .weight-panel {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+  }
+
+  .flow-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .flow-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+
+  .flow-step.current .flow-icon {
+    background: #eef2f7;
+    border-color: #9aa4b2;
+  }
+
+  .flow-label {
+    font-size: 11px;
+    color: var(--text3);
+    white-space: nowrap;
+  }
+
+  .flow-step.current .flow-label { color: var(--text); }
+
+  .flow-arrow {
+    color: var(--text3);
+    font-size: 14px;
+    margin: 0 8px;
+    padding-bottom: 16px;
+    flex-shrink: 0;
+  }
+
+  .s-green { color: var(--pass); }
+  .s-red { color: var(--fail); }
+  .s-yellow { color: var(--warn); }
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+<div class="modal-overlay" id="configModal" onclick="handleModalBackdrop(event)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="configModalTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="configModalTitle">接口配置</div>
+        <div class="modal-note">用于统一管理接口地址、鉴权信息和请求参数。</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" type="button" onclick="closeConfigModal()">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-grid">
+        <div class="input-group">
+          <label>BASE_URL</label>
+          <input type="text" id="configBaseUrl" placeholder="https://api.anthropic.com">
+        </div>
+        <div class="input-group">
+          <label>API_KEY</label>
+          <input type="password" id="configApiKey" placeholder="sk-ant-api03-..." autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label>MODEL</label>
+          <input type="text" id="configModel" placeholder="claude-sonnet-4-20250514">
+        </div>
+        <div class="input-group">
+          <label>MAX_TOKEN</label>
+          <input type="number" id="configMaxTokens" min="1" step="1" placeholder="1000">
+        </div>
+      </div>
+      <div class="modal-note">BASE_URL 支持填写根地址，程序会自动补齐到消息接口。</div>
+    </div>
+    <div class="modal-footer">
+      <div class="test-status" id="configTestStatus"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" type="button" id="testConfigBtn" onclick="testConnection()">连接测试</button>
+        <button class="btn btn-primary" type="button" onclick="saveConfigFromModal()">保存配置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="logo">Prompt Eval</div>
+  <div class="header-right">
+    <div class="api-key-wrap">
+      <button class="btn btn-secondary icon-btn" type="button" onclick="openConfigModal()" aria-label="打开配置">⚙</button>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">工作流</div>
+      <div class="step-item active" data-step="0" onclick="goStep(0)">
+        <div class="step-num"><span>1</span></div>
+        <div class="step-name">定义任务 & Prompt</div>
+      </div>
+      <div class="step-item" data-step="1" onclick="goStep(1)">
+        <div class="step-num"><span>2</span></div>
+        <div class="step-name">构建测试集</div>
+      </div>
+      <div class="step-item" data-step="2" onclick="goStep(2)">
+        <div class="step-num"><span>3</span></div>
+        <div class="step-name">LLM Grader</div>
+      </div>
+      <div class="step-item" data-step="3" onclick="goStep(3)">
+        <div class="step-num"><span>4</span></div>
+        <div class="step-name">Code Grader</div>
+      </div>
+      <div class="step-item" data-step="4" onclick="goStep(4)">
+        <div class="step-num"><span>5</span></div>
+        <div class="step-name">运行评测</div>
+      </div>
+      <div class="step-item" data-step="5" onclick="goStep(5)">
+        <div class="step-num"><span>6</span></div>
+        <div class="step-name">迭代对比</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">评测看板</div>
+      <div class="score-board" id="scoreboard">
+        <div class="score-board-title">当前版本分数</div>
+        <div class="score-row">
+          <span class="score-label">通过率</span>
+          <span class="score-val" id="sb-pass" style="color:var(--pass)">—</span>
+        </div>
+        <div class="score-bar"><div class="score-fill" id="sb-pass-bar" style="width:0%;background:var(--pass)"></div></div>
+        <div style="margin-top:10px"></div>
+        <div class="score-row">
+          <span class="score-label">测试用例</span>
+          <span class="score-val" id="sb-total" style="color:var(--text2)">0</span>
+        </div>
+        <div class="score-row" style="margin-top:4px">
+          <span class="score-label">已评测</span>
+          <span class="score-val" id="sb-graded" style="color:var(--accent)">0</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Step 0: Task & Prompt -->
+  <div class="main-area">
+    <div class="panel active" id="panel-0">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">① 定义任务 & Prompt</div>
+          <div class="panel-desc">描述你的 AI 任务，填写系统提示词（System Prompt）。这是评测的起点。</div>
+        </div>
+      </div>
+
+      <div class="flow-diagram" id="flow">
+        <div class="flow-step current" id="fs-0"><div class="flow-icon">📝</div><div class="flow-label">任务定义</div></div>
+        <div class="flow-arrow">›</div>
+        <div class="flow-step" id="fs-1"><div class="flow-icon">🗂️</div><div class="flow-label">测试集</div></div>
+        <div class="flow-arrow">›</div>
+        <div class="flow-step" id="fs-2"><div class="flow-icon">📐</div><div class="flow-label">LLM Grader</div></div>
+        <div class="flow-arrow">›</div>
+        <div class="flow-step" id="fs-3"><div class="flow-icon">🧩</div><div class="flow-label">Code Grader</div></div>
+        <div class="flow-arrow">›</div>
+        <div class="flow-step" id="fs-4"><div class="flow-icon">⚡</div><div class="flow-label">运行评测</div></div>
+        <div class="flow-arrow">›</div>
+        <div class="flow-step" id="fs-5"><div class="flow-icon">🔁</div><div class="flow-label">迭代优化</div></div>
+      </div>
+
+      <div class="callout">
+        <strong>评测建议：</strong> 先明确任务目标和成功标准，再编写第一版 Prompt。
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">任务描述</span>
+        </div>
+        <div class="input-group">
+          <label>任务名称</label>
+          <input type="text" id="taskName" placeholder="例：客服 FAQ 回答机器人">
+        </div>
+        <div class="input-group">
+          <label>任务目标（用自然语言描述）</label>
+          <textarea id="taskDesc" rows="3" placeholder="例：根据公司政策文档，准确、友好地回答用户的常见问题。不应捏造信息，无法回答时引导用户联系人工。"></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">System Prompt <span class="version-pill">v1</span></span>
+          <button class="btn btn-sm btn-secondary" onclick="loadExample()">填入示例</button>
+        </div>
+        <div class="input-group">
+          <label>系统提示词（System Prompt）</label>
+          <textarea id="systemPrompt" rows="8" placeholder="在此填写你的 System Prompt..."></textarea>
+        </div>
+        <div class="input-group">
+          <label>模型</label>
+          <input type="text" id="modelDisplay" readonly>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="goStep(1)">下一步：构建测试集 →</button>
+      </div>
+    </div>
+
+    <!-- Step 1: Test Cases -->
+    <div class="panel" id="panel-1">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">② 构建测试集</div>
+          <div class="panel-desc">为每个测试案例提供：用户输入 + Golden Answer（理想答案/参考标准）。覆盖正常、边界、复杂、对抗四类场景。</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="aiGenerateCases()">自动生成</button>
+          <button class="btn btn-primary" onclick="addTestCase()">+ 添加</button>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>测试集说明：</strong> 理想答案不必是唯一正确答案，而是你定义的"合格回答"标准。
+        建议覆盖：<code>正常用例</code> <code>边界用例</code> <code>复杂用例</code> <code>对抗用例</code>
+      </div>
+
+      <div id="testCaseList"></div>
+
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn btn-secondary" onclick="goStep(0)">← 上一步</button>
+        <button class="btn btn-primary" onclick="goStep(2)">下一步：LLM Grader →</button>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-2">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">③ LLM Grader</div>
+          <div class="panel-desc">定义评分维度和评分指令。LLM Grader 负责判断正确性、完整性、帮助性等语义质量。</div>
+        </div>
+        <button class="btn btn-secondary" onclick="aiGenerateRubric()">自动生成 Rubric</button>
+      </div>
+
+      <div class="callout">
+        <strong>LLM Grader 说明：</strong>
+        这一步用于定义语义层评分标准，例如<code>正确性</code>、<code>完整性</code>、<code>帮助性</code>、<code>风格约束</code>。
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">评分维度</span>
+          <button class="btn btn-sm btn-secondary" onclick="addRubricItem()">+ 添加维度</button>
+        </div>
+        <div id="rubricList"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">评分指令（LLM Judge Prompt）</span></div>
+        <div class="input-group">
+          <label>LLM Grader Prompt</label>
+          <textarea id="judgePrompt" rows="8"></textarea>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="goStep(1)">← 上一步</button>
+        <button class="btn btn-primary" onclick="goStep(3)">下一步：Code Grader →</button>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-3">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">④ Code Grader</div>
+          <div class="panel-desc">可选。使用 JavaScript 编写确定性校验逻辑。留空即跳过，不影响后续评测。</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="generateCodeGrader()">自动生成脚本</button>
+          <button class="btn btn-secondary" onclick="testCodeGrader()">测试脚本</button>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Code Grader 说明：</strong>
+        适合做格式、结构、关键词、语法、业务规则等确定性校验。脚本留空时，本次评测只使用 LLM Grader。
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">校验脚本（JavaScript）</span>
+        </div>
+        <div class="input-group">
+          <label>函数名固定为 <code>gradeCase</code>，参数为 <code>{ input, golden, output, task, context }</code></label>
+          <textarea id="codeGraderScript" class="script-editor" placeholder="留空则跳过。例如：
+function gradeCase({ input, golden, output, task, context }) {
+  const ok = output.trim() === golden.trim();
+  return {
+    score: ok ? 100 : 0,
+    pass: ok,
+    reason: ok ? '输出与预期一致' : '输出与预期不一致',
+    details: { exactMatch: ok }
+  };
+}"></textarea>
+        </div>
+        <div class="muted-note">返回结构：<code>{ score, pass, reason, details }</code>。建议优先写可解释的确定性规则。</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">测试结果</span>
+        </div>
+        <div id="codeGraderStatus" class="muted-note">尚未测试。若脚本为空，运行评测时会自动跳过。</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="goStep(2)">← 上一步</button>
+        <button class="btn btn-primary" onclick="goStep(4)">下一步：运行评测 →</button>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-4">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">⑤ 运行评测</div>
+          <div class="panel-desc">对每个测试用例调用模型，先运行 LLM Grader，再按需执行 Code Grader，并生成最终结果。</div>
+        </div>
+        <button class="btn btn-primary" id="runBtn" onclick="runEval()">开始评测</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">评分权重</span>
+        </div>
+        <div class="weight-panel">
+          <div class="weight-main">
+            <div class="weight-head">
+              <span>LLM 比例</span>
+              <span class="weight-value" id="llmWeightValue">0.7</span>
+            </div>
+            <input class="weight-slider" type="range" id="llmWeightInput" min="0" max="1" step="0.1">
+          </div>
+          <div class="weight-pair">
+            <span>LLM <span class="weight-value" id="llmWeightText">0.7</span></span>
+            <span>Code <span class="weight-value" id="codeWeightValue">0.3</span></span>
+          </div>
+          <div class="muted-note" id="weightStatus">当前使用自定义混合评分。</div>
+        </div>
+      </div>
+
+      <div class="metrics-row" id="metricsRow" style="display:none">
+        <div class="metric-box">
+          <div class="metric-num good" id="m-pass">—</div>
+          <div class="metric-label">通过</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-num bad" id="m-fail">—</div>
+          <div class="metric-label">失败</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-num neutral" id="m-rate">—%</div>
+          <div class="metric-label">通过率</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-num neutral" id="m-avg">—</div>
+          <div class="metric-label">平均分</div>
+        </div>
+      </div>
+
+      <div id="evalProgress" style="display:none;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;color:var(--text3);font-size:12px">
+          <div class="spinner"></div>
+          <span id="progressText">正在评测...</span>
+        </div>
+        <div style="margin-top:8px;height:4px;background:var(--surface3);border-radius:2px;overflow:hidden">
+          <div id="progressBar" style="height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width 0.3s"></div>
+        </div>
+      </div>
+
+      <div id="resultList"></div>
+
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn btn-secondary" onclick="goStep(3)">← 上一步</button>
+        <button class="btn btn-primary" onclick="goStep(5)">查看迭代对比 →</button>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-5">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">⑥ 迭代优化对比</div>
+          <div class="panel-desc">修改 Prompt，保存为新版本，对比多版本在同一测试集上的表现。</div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>迭代建议：</strong> 根据失败用例调整 Prompt，再在相同测试集上重跑并比较分数变化，避免只优化单个用例。
+      </div>
+
+      <div class="compare-grid">
+        <div class="compare-col">
+          <div class="compare-title">
+            <span class="version-pill">v1</span> 当前版本
+          </div>
+          <div class="card compare-card">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">System Prompt</div>
+            <div class="compare-prompt-display" style="font-size:12px;color:var(--text2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto" id="v1-prompt-display">—</div>
+          </div>
+          <div class="btn-row compare-actions compare-actions-empty" aria-hidden="true">
+            <button class="btn btn-secondary" type="button" tabindex="-1">占位</button>
+            <button class="btn btn-primary" type="button" tabindex="-1">占位</button>
+          </div>
+          <div class="metrics-row compare-metrics">
+            <div class="metric-box">
+              <div class="metric-num" id="v1-rate" style="color:var(--text3)">—</div>
+              <div class="metric-label">通过率</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-num" id="v1-avg" style="color:var(--text3)">—</div>
+              <div class="metric-label">平均分</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="compare-col">
+          <div class="compare-title">
+            <span class="version-pill">v2</span> 新版本
+          </div>
+          <div class="card compare-card">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">新 System Prompt</div>
+            <textarea id="v2Prompt" rows="8" placeholder="在此输入改进后的 Prompt..."></textarea>
+          </div>
+          <div class="btn-row compare-actions">
+            <button class="btn btn-secondary" onclick="generateV2PromptFromResults()" id="generateV2Btn">自动优化生成 v2 Prompt</button>
+            <div id="v2PromptProgress" style="display:none"><div class="spinner"></div></div>
+            <button class="btn btn-primary" onclick="runV2Eval()" id="runV2Btn">运行 v2 评测</button>
+            <div id="v2RunProgress" style="display:none"><div class="spinner"></div></div>
+          </div>
+          <div class="metrics-row compare-metrics">
+            <div class="metric-box">
+              <div class="metric-num" id="v2-rate" style="color:var(--text3)">—</div>
+              <div class="metric-label">通过率</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-num" id="v2-avg" style="color:var(--text3)">—</div>
+              <div class="metric-label">平均分</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div id="compareTable" style="display:none">
+        <div style="font-family:var(--sans);font-size:14px;font-weight:600;margin-bottom:12px">逐条对比</div>
+        <table class="test-table" id="compareTableInner">
+          <thead>
+            <tr>
+              <th>输入</th>
+              <th>v1 评分</th>
+              <th>v2 评分</th>
+              <th>变化</th>
+            </tr>
+          </thead>
+          <tbody id="compareRows"></tbody>
+        </table>
+      </div>
+
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn btn-secondary" onclick="goStep(4)">← 返回评测</button>
+        <button class="btn btn-secondary" onclick="exportResults()">↓ 导出报告</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+const state = {
+  currentStep: 0,
+  testCases: [],
+  rubricItems: [],
+  evalResults: [],  // v1 results
+  v2Results: [],
+  v1Score: null,
+  v2Score: null,
+  config: null,
+  graderWeights: { llm: 0.7, code: 0.3 },
+};
+
+const DEFAULT_CONFIG = {
+  baseUrl: 'https://api.anthropic.com',
+  apiKey: '',
+  model: 'claude-sonnet-4-20250514',
+  maxTokens: 1000,
+};
+
+const CONFIG_STORAGE_KEY = 'prompt-eval-config';
+
+// ─── Nav ─────────────────────────────────────────────────────────────────────
+function goStep(n) {
+  document.querySelectorAll('.panel').forEach((p,i) => p.classList.toggle('active', i===n));
+  document.querySelectorAll('.step-item').forEach((s,i) => {
+    s.classList.toggle('active', i===n);
+  });
+  document.querySelectorAll('.flow-step').forEach((f,i) => {
+    f.classList.toggle('current', i===n);
+  });
+  state.currentStep = n;
+
+  // populate compare panel
+  if (n===5) {
+    document.getElementById('v1-prompt-display').textContent = document.getElementById('systemPrompt').value || '（未填写）';
+    if (state.v1Score) {
+      document.getElementById('v1-rate').textContent = state.v1Score.rate + '%';
+      document.getElementById('v1-rate').className = 'metric-num ' + scoreColor(state.v1Score.rate/100);
+      document.getElementById('v1-avg').textContent = state.v1Score.avg.toFixed(1);
+      document.getElementById('v1-avg').className = 'metric-num ' + scoreColor(state.v1Score.avg/100);
+    }
+  }
+}
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_CONFIG };
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_CONFIG,
+      ...parsed,
+      maxTokens: Number(parsed.maxTokens || DEFAULT_CONFIG.maxTokens),
+    };
+  } catch (_) {
+    return { ...DEFAULT_CONFIG };
+  }
+}
+
+function getConfig() {
+  return state.config || { ...DEFAULT_CONFIG };
+}
+
+function normalizeBaseUrl(baseUrl) {
+  const trimmed = String(baseUrl || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return 'https://api.anthropic.com/v1/messages';
+  if (trimmed.endsWith('/v1/messages') || trimmed.endsWith('/messages')) return trimmed;
+  if (trimmed.endsWith('/v1')) return `${trimmed}/messages`;
+  return `${trimmed}/v1/messages`;
+}
+
+function updateConfigIndicators(config = getConfig()) {
+  document.getElementById('modelDisplay').value = config.model || '';
+}
+
+function openConfigModal() {
+  const config = getConfig();
+  document.getElementById('configBaseUrl').value = config.baseUrl || '';
+  document.getElementById('configApiKey').value = config.apiKey || '';
+  document.getElementById('configModel').value = config.model || '';
+  document.getElementById('configMaxTokens').value = config.maxTokens || DEFAULT_CONFIG.maxTokens;
+  document.getElementById('configTestStatus').textContent = '';
+  document.getElementById('configTestStatus').className = 'test-status';
+  document.getElementById('configModal').classList.add('open');
+}
+
+function closeConfigModal() {
+  document.getElementById('configModal').classList.remove('open');
+}
+
+function handleModalBackdrop(event) {
+  if (event.target.id === 'configModal') closeConfigModal();
+}
+
+function readConfigForm() {
+  return {
+    baseUrl: document.getElementById('configBaseUrl').value.trim() || DEFAULT_CONFIG.baseUrl,
+    apiKey: document.getElementById('configApiKey').value.trim(),
+    model: document.getElementById('configModel').value.trim() || DEFAULT_CONFIG.model,
+    maxTokens: Math.max(1, Number(document.getElementById('configMaxTokens').value || DEFAULT_CONFIG.maxTokens)),
+  };
+}
+
+function saveConfig(config) {
+  state.config = config;
+  localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+  updateConfigIndicators(config);
+}
+
+function saveConfigFromModal() {
+  const config = readConfigForm();
+  saveConfig(config);
+  closeConfigModal();
+  toast('✅ 配置已保存');
+}
+
+function getCodeGraderScript() {
+  return document.getElementById('codeGraderScript')?.value.trim() || '';
+}
+
+function codeGraderEnabled() {
+  return Boolean(getCodeGraderScript());
+}
+
+function clampWeight(value, fallback) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(0, Math.min(1, num));
+}
+
+function getEffectiveWeights() {
+  if (!codeGraderEnabled()) {
+    return { llm: 1, code: 0, locked: true };
+  }
+  const llm = clampWeight(state.graderWeights.llm, 0.7);
+  const code = clampWeight(state.graderWeights.code, 0.3);
+  const total = llm + code;
+  if (total <= 0) return { llm: 0.7, code: 0.3, locked: false };
+  return {
+    llm: Number((llm / total).toFixed(2)),
+    code: Number((code / total).toFixed(2)),
+    locked: false,
+  };
+}
+
+function refreshWeightControls() {
+  const llmInput = document.getElementById('llmWeightInput');
+  const codeInput = document.getElementById('codeWeightInput');
+  const llmValue = document.getElementById('llmWeightValue');
+  const llmText = document.getElementById('llmWeightText');
+  const codeValue = document.getElementById('codeWeightValue');
+  const status = document.getElementById('weightStatus');
+  if (!llmInput || !llmValue || !llmText || !codeValue || !status) return;
+
+  const weights = getEffectiveWeights();
+  llmInput.value = weights.llm.toFixed(1);
+  llmValue.textContent = weights.llm.toFixed(1);
+  llmText.textContent = weights.llm.toFixed(1);
+  codeValue.textContent = weights.code.toFixed(1);
+  llmInput.disabled = weights.locked;
+  status.textContent = weights.locked
+    ? 'Code Grader 未配置，当前固定使用 LLM=1.0 / Code=0.0。'
+    : '当前使用可调的混合评分权重。';
+}
+
+function updateWeight(type, value) {
+  if (!codeGraderEnabled()) {
+    refreshWeightControls();
+    return;
+  }
+
+  const next = clampWeight(value, 0.7);
+  state.graderWeights.llm = next;
+  state.graderWeights.code = Math.max(0, 1 - next);
+  refreshWeightControls();
+}
+
+function setCodeGraderStatus(message, type = 'info') {
+  const el = document.getElementById('codeGraderStatus');
+  if (!el) return;
+  el.textContent = message;
+  el.className = type === 'error' ? 'test-status error' : type === 'ok' ? 'test-status ok' : 'muted-note';
+}
+
+function normalizeCodeGrade(result) {
+  if (!result || typeof result !== 'object') throw new Error('脚本必须返回对象');
+  const score = Math.max(0, Math.min(100, Number(result.score ?? 0)));
+  const pass = typeof result.pass === 'boolean' ? result.pass : score >= 70;
+  return {
+    score,
+    pass,
+    reason: String(result.reason || ''),
+    details: result.details && typeof result.details === 'object' ? result.details : {},
+  };
+}
+
+function executeCodeGrader(script, payload) {
+  const runner = new Function('payload', `${script}\nif (typeof gradeCase !== 'function') { throw new Error('未定义 gradeCase 函数'); }\nreturn gradeCase(payload);`);
+  return normalizeCodeGrade(runner(payload));
+}
+
+function buildCodeGraderPayload(tc, output) {
+  return {
+    input: tc.input,
+    golden: tc.golden,
+    output,
+    task: document.getElementById('taskName').value.trim(),
+    context: {
+      taskDesc: document.getElementById('taskDesc').value.trim(),
+      systemPrompt: document.getElementById('systemPrompt').value,
+      category: tc.category,
+    },
+  };
+}
+
+async function generateCodeGrader() {
+  const config = getConfig();
+  if (!config.apiKey) { toast('⚠️ 请先完成接口配置'); return; }
+  if (!state.testCases.length) { toast('⚠️ 请先准备测试用例'); return; }
+
+  setCodeGraderStatus('正在生成脚本...');
+  const sampleCases = state.testCases.slice(0, 3).map(tc => ({
+    category: tc.category,
+    input: tc.input,
+    golden: tc.golden,
+  }));
+  const rubric = state.rubricItems.map(r => ({ name: r.name, desc: r.desc, weight: r.weight }));
+  const prompt = `请为一个前端 Prompt Eval 工具生成 JavaScript 版 code grader 脚本。\n\n任务名称：${document.getElementById('taskName').value.trim()}\n任务描述：${document.getElementById('taskDesc').value.trim()}\nSystem Prompt：${document.getElementById('systemPrompt').value}\n\nLLM Grader 维度：\n${JSON.stringify(rubric, null, 2)}\n\n测试样例：\n${JSON.stringify(sampleCases, null, 2)}\n\n要求：\n1. 只返回 JavaScript 代码，不要解释。\n2. 必须定义函数 gradeCase({ input, golden, output, task, context })。\n3. 返回 { score, pass, reason, details }。\n4. score 范围 0-100。\n5. 优先使用确定性规则，如格式、结构、关键词、禁词、长度、语法、字段完整性等。\n6. 不依赖网络、文件系统或外部库。\n7. 如果案例差异较大，优先写通用规则，不要写死某一个样例。`;
+
+  try {
+    const script = (await callClaude(config, prompt, '你是一个擅长编写确定性校验脚本的 JavaScript 工程师。')).replace(/```javascript|```js|```/g, '').trim();
+    document.getElementById('codeGraderScript').value = script;
+    setCodeGraderStatus('脚本已生成，可先点击“测试脚本”验证。', 'ok');
+    refreshWeightControls();
+    toast('✅ Code Grader 脚本已生成');
+  } catch (e) {
+    setCodeGraderStatus(`脚本生成失败：${e.message}`, 'error');
+    toast('❌ 脚本生成失败: ' + e.message);
+  }
+}
+
+function testCodeGrader() {
+  const script = getCodeGraderScript();
+  if (!script) {
+    setCodeGraderStatus('脚本为空，当前会在评测时自动跳过。');
+    return;
+  }
+  if (!state.testCases.length) {
+    setCodeGraderStatus('请先准备至少一个测试用例。', 'error');
+    return;
+  }
+
+  try {
+    const tc = state.testCases[0];
+    const result = executeCodeGrader(script, buildCodeGraderPayload(tc, tc.golden));
+    setCodeGraderStatus(`测试成功：score=${result.score}，pass=${result.pass}，reason=${result.reason || '无'}`, 'ok');
+  } catch (e) {
+    setCodeGraderStatus(`脚本执行失败：${e.message}`, 'error');
+  }
+}
+
+function mergeGrades(llmGrade, codeGrade) {
+  if (!codeGrade || codeGrade.skipped) {
+    return {
+      score: llmGrade.score,
+      pass: llmGrade.pass,
+      source: 'llm_only',
+      codeGrade: { skipped: true },
+      weights: { llm: 1, code: 0 },
+    };
+  }
+
+  const weights = getEffectiveWeights();
+  const score = Math.round(llmGrade.score * weights.llm + codeGrade.score * weights.code);
+  return {
+    score,
+    pass: score >= 70,
+    source: 'llm_plus_code',
+    codeGrade,
+    weights,
+  };
+}
+
+async function testConnection() {
+  const btn = document.getElementById('testConfigBtn');
+  const status = document.getElementById('configTestStatus');
+  const config = readConfigForm();
+  if (!config.apiKey) {
+    status.textContent = '请先填写 API_KEY';
+    status.className = 'test-status error';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> 测试中';
+  status.textContent = '正在测试连接...';
+  status.className = 'test-status';
+
+  try {
+    await callClaude(config, '请回复 ok', '你是一个连接测试助手。');
+    status.textContent = '连接成功';
+    status.className = 'test-status ok';
+  } catch (e) {
+    status.textContent = `连接失败：${e.message}`;
+    status.className = 'test-status error';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '连接测试';
+  }
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeConfigModal();
+});
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, dur=3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ─── Example ─────────────────────────────────────────────────────────────────
+function loadExample() {
+  document.getElementById('taskName').value = '客服 FAQ 机器人';
+  document.getElementById('taskDesc').value = '根据公司退款政策，准确回答用户的退款相关问题。不能捏造信息，遇到无法回答的问题引导联系人工。';
+  document.getElementById('systemPrompt').value = `你是一位专业的客服助手，负责回答用户关于退款政策的问题。
+
+<policy>
+退款政策：
+- 商品购买后7天内可无条件退款
+- 电子产品拆封后不支持退款
+- 退款将在3-5个工作日内原路返回
+- 如商品有质量问题，30天内均可申请退款
+</policy>
+
+请根据以上政策回答用户问题。如果问题超出政策范围，请礼貌地告知用户并建议联系人工客服。回答应简洁、准确、友好。`;
+
+  // Pre-populate test cases
+  state.testCases = [
+    { id: 1, type: 'normal', input: '我买了一件衬衫，3天了，想退货可以吗？', golden: '可以退款，在7天无条件退款期内，请联系我们发起退款，3-5个工作日内原路返回。', category: '正常' },
+    { id: 2, type: 'boundary', input: '我昨天买的手机拆开用了，能退吗？', golden: '电子产品拆封后不支持退款，这是我们的政策规定。如您的设备有质量问题，可在30天内申请退款。', category: '边界' },
+    { id: 3, type: 'complex', input: '买了20天了，手机有死机问题，能退吗？', golden: '商品有质量问题在30天内均可申请退款，您的情况符合条件，请联系我们提供质量问题证明并发起退款申请。', category: '复杂' },
+    { id: 4, type: 'adversarial', input: '你能直接帮我办理退款吗？', golden: '很抱歉，作为 AI 助手我无法直接操作退款，请您通过官方渠道或联系人工客服办理退款手续。', category: '对抗' },
+  ];
+  renderTestCases();
+
+  // Pre-populate rubric
+  state.rubricItems = [
+    { id: 1, name: '准确性', desc: '回答与政策内容一致，无错误信息', weight: 40 },
+    { id: 2, name: '完整性', desc: '覆盖了用户问题的关键点', weight: 30 },
+    { id: 3, name: '语气友好', desc: '回答礼貌、简洁、无攻击性语言', weight: 20 },
+    { id: 4, name: '引导性', desc: '无法回答时正确引导用户联系人工', weight: 10 },
+  ];
+  renderRubricItems();
+  updateJudgePrompt();
+  toast('✅ 示例已载入');
+}
+
+// ─── Test Cases ──────────────────────────────────────────────────────────────
+let tcId = 100;
+function addTestCase(tc) {
+  if (!tc) tc = { id: ++tcId, type: 'normal', input: '', golden: '', category: '正常' };
+  state.testCases.push(tc);
+  renderTestCases();
+}
+
+function removeTestCase(id) {
+  state.testCases = state.testCases.filter(t => t.id !== id);
+  renderTestCases();
+}
+
+const CATEGORY_LABELS = ['正常', '边界', '复杂', '对抗'];
+
+function renderTestCases() {
+  const list = document.getElementById('testCaseList');
+  if (!state.testCases.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🗂️</div>
+      <div class="empty-title">暂无测试用例</div>
+      <div class="empty-sub">点击"添加"或使用"自动生成"创建测试集</div>
+    </div>`;
+    return;
+  }
+  list.innerHTML = '';
+  state.testCases.forEach(tc => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.marginBottom = '12px';
+    const catColor = { '正常': 'var(--pass)', '边界': 'var(--warn)', '复杂': 'var(--accent)', '对抗': 'var(--fail)' }[tc.category] || 'var(--text3)';
+    card.innerHTML = `
+      <div class="card-header">
+        <span class="card-title" style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44">${tc.category}</span>
+          TC-${tc.id}
+        </span>
+        <div class="btn-row">
+          <select style="width:90px;padding:4px 6px;font-size:11px" onchange="updateTC(${tc.id},'category',this.value)">
+            ${CATEGORY_LABELS.map(l=>`<option ${l===tc.category?'selected':''}>${l}</option>`).join('')}
+          </select>
+          <button class="btn btn-sm btn-danger" onclick="removeTestCase(${tc.id})">✕</button>
+        </div>
+      </div>
+      <div class="input-group">
+        <label>用户输入</label>
+        <textarea rows="2" onchange="updateTC(${tc.id},'input',this.value)">${tc.input}</textarea>
+      </div>
+      <div class="input-group" style="margin-bottom:0">
+        <label>Golden Answer（理想答案）</label>
+        <textarea rows="2" onchange="updateTC(${tc.id},'golden',this.value)">${tc.golden}</textarea>
+      </div>`;
+    list.appendChild(card);
+  });
+  updateScoreboard();
+}
+
+function updateTC(id, field, val) {
+  const tc = state.testCases.find(t => t.id === id);
+  if (tc) tc[field] = val;
+}
+
+// ─── AI Generate Cases ────────────────────────────────────────────────────────
+async function aiGenerateCases() {
+  const config = getConfig();
+  if (!config.apiKey) { toast('⚠️ 请先完成接口配置'); return; }
+  const sp = document.getElementById('systemPrompt').value;
+  const desc = document.getElementById('taskDesc').value;
+  if (!sp && !desc) { toast('⚠️ 请先填写任务描述或 System Prompt'); return; }
+
+  toast('正在生成测试用例...');
+  const prompt = `根据以下 AI 任务，生成 6 个多样化的测试用例（覆盖正常、边界、复杂、对抗场景）。
+
+任务描述：${desc}
+System Prompt：${sp}
+
+请只返回 JSON 数组，格式如下（不要任何其他文字）：
+[
+  {"category": "正常|边界|复杂|对抗", "input": "用户输入", "golden": "理想回答"}
+]`;
+
+  try {
+    const resp = await callClaude(config, prompt, '你是一个 AI 测试专家。');
+    let raw = resp.replace(/```json?|```/g,'').trim();
+    const arr = JSON.parse(raw);
+    arr.forEach(item => {
+      state.testCases.push({ id: ++tcId, category: item.category||'正常', input: item.input, golden: item.golden });
+    });
+    renderTestCases();
+    toast(`✅ 已生成 ${arr.length} 个测试用例`);
+  } catch(e) { toast('❌ 生成失败: ' + e.message); }
+}
+
+// ─── Rubric ───────────────────────────────────────────────────────────────────
+let rubricId = 0;
+function addRubricItem() {
+  state.rubricItems.push({ id: ++rubricId, name: '', desc: '', weight: 25 });
+  renderRubricItems();
+}
+
+function removeRubricItem(id) {
+  state.rubricItems = state.rubricItems.filter(r => r.id !== id);
+  renderRubricItems();
+}
+
+function renderRubricItems() {
+  const list = document.getElementById('rubricList');
+  if (!state.rubricItems.length) {
+    list.innerHTML = `<div style="color:var(--text3);font-size:12px;padding:12px 0">暂无评分维度，点击"添加维度"或使用"自动生成 Rubric"</div>`;
+    return;
+  }
+  list.innerHTML = '';
+  state.rubricItems.forEach(r => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(42,42,58,0.5)';
+    div.innerHTML = `
+      <input type="text" placeholder="维度名称" value="${r.name}" style="padding:6px 10px"
+        onchange="updateRubric(${r.id},'name',this.value)">
+      <input type="text" placeholder="评分说明（什么算好）" value="${r.desc}" style="padding:6px 10px"
+        onchange="updateRubric(${r.id},'desc',this.value)">
+      <div style="display:flex;align-items:center;gap:6px;white-space:nowrap">
+        <input type="number" min="1" max="100" value="${r.weight}" style="width:60px;padding:6px 8px"
+          onchange="updateRubric(${r.id},'weight',+this.value)">
+        <span style="font-size:11px;color:var(--text3)">分</span>
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="removeRubricItem(${r.id})">✕</button>`;
+    list.appendChild(div);
+  });
+  updateJudgePrompt();
+}
+
+function updateRubric(id, field, val) {
+  const r = state.rubricItems.find(x => x.id===id);
+  if (r) { r[field] = val; updateJudgePrompt(); }
+}
+
+function updateJudgePrompt() {
+  const criteria = state.rubricItems.map(r =>
+    `- ${r.name}（${r.weight}分）：${r.desc}`
+  ).join('\n');
+  document.getElementById('judgePrompt').value =
+`你是一位专业的 AI 回答质量评测员。
+
+你的任务是根据评分标准对以下内容进行评分：
+
+<input>{{USER_INPUT}}</input>
+<golden_answer>{{GOLDEN_ANSWER}}</golden_answer>
+<model_output>{{MODEL_OUTPUT}}</model_output>
+
+评分标准：
+${criteria}
+
+请先简短分析各维度表现，然后给出总分（满分100）。
+
+必须只返回 JSON 格式（不要任何其他文字）：
+{"score": 数字, "pass": true/false, "reason": "简要评语", "breakdown": {"维度名": 分数}}`;
+}
+
+async function aiGenerateRubric() {
+  const config = getConfig();
+  if (!config.apiKey) { toast('⚠️ 请先完成接口配置'); return; }
+  const sp = document.getElementById('systemPrompt').value;
+  if (!sp) { toast('⚠️ 请先填写 System Prompt'); return; }
+
+  toast('正在生成评分 Rubric...');
+  const prompt = `根据以下 System Prompt，设计一个合理的评分 Rubric（3-5个维度，总权重100分）。
+
+System Prompt：${sp}
+
+只返回 JSON 数组（不要其他文字）：
+[{"name": "维度名", "desc": "评分说明", "weight": 权重数字}]`;
+
+  try {
+    const resp = await callClaude(config, prompt, '你是一个 AI 评测专家。');
+    let raw = resp.replace(/```json?|```/g,'').trim();
+    const arr = JSON.parse(raw);
+    state.rubricItems = arr.map((x,i) => ({...x, id: ++rubricId}));
+    renderRubricItems();
+    toast(`✅ 已生成 ${arr.length} 个评分维度`);
+  } catch(e) { toast('❌ 生成失败: ' + e.message); }
+}
+
+// ─── Run Eval ─────────────────────────────────────────────────────────────────
+async function runEval() {
+  const config = getConfig();
+  if (!config.apiKey) { toast('⚠️ 请先完成接口配置'); return; }
+  if (!state.testCases.length) { toast('⚠️ 请先添加测试用例'); goStep(1); return; }
+  const codeScript = getCodeGraderScript();
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> 评测中...';
+  document.getElementById('evalProgress').style.display = 'block';
+  document.getElementById('metricsRow').style.display = 'none';
+  document.getElementById('resultList').innerHTML = '';
+  state.evalResults = [];
+
+  const sp = document.getElementById('systemPrompt').value;
+  const judgePromptTpl = document.getElementById('judgePrompt').value;
+  const total = state.testCases.length;
+
+  for (let i=0; i<total; i++) {
+    const tc = state.testCases[i];
+    document.getElementById('progressText').textContent = `评测中 ${i+1}/${total}: ${tc.input.slice(0,30)}...`;
+    document.getElementById('progressBar').style.width = ((i/total)*100) + '%';
+
+    // Step 1: get model output
+    let output = '';
+    try {
+      output = await callClaude(config, tc.input, sp);
+    } catch(e) { output = '[ERROR] ' + e.message; }
+
+    // Step 2: LLM judge
+    let score = 50, pass = false, reason = '评分失败', breakdown = {};
+    try {
+      const judgePrompt = judgePromptTpl
+        .replace('{{USER_INPUT}}', tc.input)
+        .replace('{{GOLDEN_ANSWER}}', tc.golden)
+        .replace('{{MODEL_OUTPUT}}', output);
+      const judgeResp = await callClaude(config, judgePrompt, '你是严格的 AI 评测员，只输出 JSON。');
+      const j = JSON.parse(judgeResp.replace(/```json?|```/g,'').trim());
+      score = j.score || 50; pass = j.pass || (score >= 70); reason = j.reason || ''; breakdown = j.breakdown || {};
+    } catch(e) { reason = '评分解析失败: ' + e.message; }
+
+    const llmGrade = { score, pass, reason, breakdown };
+    let codeGrade = { skipped: true };
+    if (codeScript) {
+      try {
+        codeGrade = executeCodeGrader(codeScript, buildCodeGraderPayload(tc, output));
+      } catch (e) {
+        codeGrade = { score: 0, pass: false, reason: `Code Grader 执行失败：${e.message}`, details: {}, error: true };
+      }
+    }
+
+    const merged = mergeGrades(llmGrade, codeGrade);
+    const result = {
+      tc,
+      output,
+      score: merged.score,
+      pass: merged.pass,
+      reason,
+      breakdown,
+      llmGrade,
+      codeGrade: merged.codeGrade,
+      source: merged.source,
+      weights: merged.weights,
+    };
+    state.evalResults.push(result);
+    renderResultItem(result, i);
+  }
+
+  document.getElementById('progressBar').style.width = '100%';
+  document.getElementById('evalProgress').style.display = 'none';
+  btn.disabled = false; btn.innerHTML = '重新评测';
+
+  // Metrics
+  const passes = state.evalResults.filter(r=>r.pass).length;
+  const avg = state.evalResults.reduce((s,r)=>s+r.score,0)/total;
+  const rate = Math.round(passes/total*100);
+  state.v1Score = { rate, avg };
+
+  document.getElementById('m-pass').textContent = passes;
+  document.getElementById('m-fail').textContent = total - passes;
+  document.getElementById('m-rate').textContent = rate + '%';
+  document.getElementById('m-rate').className = 'metric-num ' + scoreColor(rate/100);
+  document.getElementById('m-avg').textContent = avg.toFixed(1);
+  document.getElementById('metricsRow').style.display = 'flex';
+
+  updateScoreboard(rate, state.evalResults.length);
+  toast(`✅ 评测完成：${passes}/${total} 通过，平均分 ${avg.toFixed(1)}`);
+}
+
+function renderResultItem(r, idx) {
+  const list = document.getElementById('resultList');
+  const cls = r.pass ? 'pass' : (r.score >= 50 ? 'partial' : 'fail');
+  const tagCls = r.pass ? 'tag-pass' : (r.score >= 50 ? 'tag-partial' : 'tag-fail');
+  const tagText = r.pass ? 'PASS' : (r.score >= 50 ? 'PARTIAL' : 'FAIL');
+  const pct = r.score;
+
+  const item = document.createElement('div');
+  item.className = `result-item ${cls}`;
+  item.id = `result-${idx}`;
+  const codeGradeText = r.codeGrade?.skipped
+    ? 'Code Grader: skipped'
+    : `Code Grader: ${r.codeGrade.score}`;
+  const weightText = r.weights ? `LLM ${r.weights.llm.toFixed(1)} / Code ${r.weights.code.toFixed(1)}` : 'LLM 1.0 / Code 0.0';
+  item.innerHTML = `
+    <div class="result-header" onclick="toggleResult(${idx})">
+      <span class="result-toggle" id="rt-${idx}">›</span>
+      <span class="tag ${tagCls}">${tagText}</span>
+      <span style="font-size:12px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.tc.input}</span>
+      <span style="font-size:13px;font-weight:700;font-family:var(--sans);color:${r.pass?'var(--pass)':r.score>=50?'var(--warn)':'var(--fail)'}">${r.score}</span>
+      <span style="font-size:10px;color:var(--text3)">/100</span>
+    </div>
+    <div class="result-score-bar">
+      <span>${r.tc.category}</span>
+      <div class="mini-bar"><div class="mini-fill" style="width:${pct}%;background:${r.pass?'var(--pass)':r.score>=50?'var(--warn)':'var(--fail)'}"></div></div>
+      <span style="font-size:11px;color:var(--text2)">${weightText} · ${codeGradeText} · ${r.reason.slice(0,40)}${r.reason.length>40?'...':''}</span>
+    </div>
+    <div class="result-body" id="rb-${idx}">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+          <div style="font-size:10px;color:var(--text3)">LLM Grader</div>
+          <div style="font-size:14px;font-weight:700;color:${r.llmGrade.score>=70?'var(--pass)':r.llmGrade.score>=50?'var(--warn)':'var(--fail)'}">${r.llmGrade.score}</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+          <div style="font-size:10px;color:var(--text3)">Code Grader</div>
+          <div style="font-size:14px;font-weight:700;color:${r.codeGrade?.skipped?'var(--text3)':r.codeGrade.score>=70?'var(--pass)':r.codeGrade.score>=50?'var(--warn)':'var(--fail)'}">${r.codeGrade?.skipped?'Skipped':r.codeGrade.score}</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+          <div style="font-size:10px;color:var(--text3)">权重</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text)">${weightText}</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+          <div style="font-size:10px;color:var(--text3)">Final</div>
+          <div style="font-size:14px;font-weight:700;color:${r.score>=70?'var(--pass)':r.score>=50?'var(--warn)':'var(--fail)'}">${r.score}</div>
+        </div>
+      </div>
+      <div class="result-col-row">
+        <div class="result-col">
+          <div class="result-col-title">模型输出</div>
+          <p>${escHtml(r.output)}</p>
+        </div>
+        <div class="result-col">
+          <div class="result-col-title">Golden Answer</div>
+          <p>${escHtml(r.tc.golden)}</p>
+        </div>
+      </div>
+      ${Object.keys(r.breakdown).length ? `
+      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+        ${Object.entries(r.breakdown).map(([k,v])=>`
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+            <div style="font-size:10px;color:var(--text3)">${k}</div>
+            <div style="font-size:14px;font-weight:700;color:${v>=70?'var(--pass)':v>=40?'var(--warn)':'var(--fail)'}">${v}</div>
+          </div>`).join('')}
+      </div>` : ''}
+      <div style="margin-top:10px;font-size:12px;color:var(--text3)">LLM 评语：${escHtml(r.reason)}</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--text3)">Code Grader：${escHtml(r.codeGrade?.skipped ? 'Skipped' : (r.codeGrade?.reason || '无'))}</div>
+    </div>`;
+  list.appendChild(item);
+}
+
+function toggleResult(idx) {
+  const body = document.getElementById(`rb-${idx}`);
+  const icon = document.getElementById(`rt-${idx}`);
+  const open = body.classList.toggle('open');
+  icon.classList.toggle('open', open);
+}
+
+// ─── V2 Eval ──────────────────────────────────────────────────────────────────
+async function runV2Eval() {
+  const config = getConfig();
+  if (!config.apiKey) { toast('⚠️ 请先完成接口配置'); return; }
+  const v2Prompt = document.getElementById('v2Prompt').value;
+  if (!v2Prompt) { toast('⚠️ 请填写 v2 System Prompt'); return; }
+  if (!state.testCases.length) { toast('⚠️ 无测试用例'); return; }
+  const codeScript = getCodeGraderScript();
+
+  const btn = document.getElementById('runV2Btn');
+  const prog = document.getElementById('v2RunProgress');
+  btn.disabled = true; prog.style.display = 'flex';
+  state.v2Results = [];
+
+  const judgePromptTpl = document.getElementById('judgePrompt').value;
+
+  for (const tc of state.testCases) {
+    let output = '';
+    try { output = await callClaude(config, tc.input, v2Prompt); }
+    catch(e) { output = '[ERROR] ' + e.message; }
+
+    let score = 50, pass = false, reason = '', breakdown = {};
+    try {
+      const jp = judgePromptTpl
+        .replace('{{USER_INPUT}}', tc.input)
+        .replace('{{GOLDEN_ANSWER}}', tc.golden)
+        .replace('{{MODEL_OUTPUT}}', output);
+      const jr = await callClaude(config, jp, '你是严格的 AI 评测员，只输出 JSON。');
+      const j = JSON.parse(jr.replace(/```json?|```/g,'').trim());
+      score = j.score||50; pass = j.pass||(score>=70); reason = j.reason||''; breakdown = j.breakdown||{};
+    } catch(e) { reason = '评分失败'; }
+
+    const llmGrade = { score, pass, reason, breakdown };
+    let codeGrade = { skipped: true };
+    if (codeScript) {
+      try {
+        codeGrade = executeCodeGrader(codeScript, buildCodeGraderPayload(tc, output));
+      } catch (e) {
+        codeGrade = { score: 0, pass: false, reason: `Code Grader 执行失败：${e.message}`, details: {}, error: true };
+      }
+    }
+    const merged = mergeGrades(llmGrade, codeGrade);
+    state.v2Results.push({ tc, output, score: merged.score, pass: merged.pass, reason, breakdown, llmGrade, codeGrade: merged.codeGrade, source: merged.source, weights: merged.weights });
+  }
+
+  const passes = state.v2Results.filter(r=>r.pass).length;
+  const avg = state.v2Results.reduce((s,r)=>s+r.score,0)/state.v2Results.length;
+  const rate = Math.round(passes/state.v2Results.length*100);
+  state.v2Score = { rate, avg };
+
+  document.getElementById('v2-rate').textContent = rate + '%';
+  document.getElementById('v2-rate').className = 'metric-num ' + scoreColor(rate/100);
+  document.getElementById('v2-avg').textContent = avg.toFixed(1);
+  document.getElementById('v2-avg').className = 'metric-num ' + scoreColor(avg/100);
+
+  btn.disabled = false; prog.style.display = 'none';
+  renderCompareTable();
+  toast(`✅ v2 评测完成：${passes}/${state.v2Results.length} 通过`);
+}
+
+function renderCompareTable() {
+  const wrap = document.getElementById('compareTable');
+  const tbody = document.getElementById('compareRows');
+  tbody.innerHTML = '';
+  wrap.style.display = 'block';
+
+  state.testCases.forEach((tc, i) => {
+    const v1 = state.evalResults[i];
+    const v2 = state.v2Results[i];
+    if (!v1 || !v2) return;
+    const diff = v2.score - v1.score;
+    const diffColor = diff > 0 ? 'var(--pass)' : diff < 0 ? 'var(--fail)' : 'var(--text3)';
+    const diffStr = diff > 0 ? `+${diff}` : `${diff}`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="cell-input"><span class="truncate">${escHtml(tc.input)}</span></td>
+      <td><span class="${v1.pass?'s-green':v1.score>=50?'s-yellow':'s-red'}">${v1.score}</span></td>
+      <td><span class="${v2.pass?'s-green':v2.score>=50?'s-yellow':'s-red'}">${v2.score}</span></td>
+      <td><span style="font-weight:700;color:${diffColor}">${diffStr}</span></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function buildOptimizationPayload() {
+  const topResults = [...state.evalResults]
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 5)
+    .map((r) => ({
+      input: r.tc.input,
+      golden: r.tc.golden,
+      output: r.output,
+      finalScore: r.score,
+      llmScore: r.llmGrade?.score ?? r.score,
+      codeScore: r.codeGrade?.skipped ? null : r.codeGrade?.score,
+      llmReason: r.reason,
+      codeReason: r.codeGrade?.skipped ? 'Skipped' : (r.codeGrade?.reason || ''),
+      category: r.tc.category,
+    }));
+
+  const strengths = state.evalResults
+    .filter((r) => r.score >= 85)
+    .slice(0, 3)
+    .map((r) => ({ input: r.tc.input, reason: r.reason, score: r.score }));
+
+  return {
+    taskName: document.getElementById('taskName').value.trim(),
+    taskDesc: document.getElementById('taskDesc').value.trim(),
+    systemPrompt: document.getElementById('systemPrompt').value,
+    judgePrompt: document.getElementById('judgePrompt').value,
+    rubric: state.rubricItems.map((r) => ({ name: r.name, desc: r.desc, weight: r.weight })),
+    testCases: state.testCases.map((tc) => ({ category: tc.category, input: tc.input, golden: tc.golden })),
+    weakCases: topResults,
+    strengths,
+    codeGraderEnabled: codeGraderEnabled(),
+    codeGraderScript: codeGraderEnabled() ? getCodeGraderScript() : '',
+    weights: getEffectiveWeights(),
+  };
+}
+
+async function generateV2PromptFromResults() {
+  const config = getConfig();
+  if (!config.apiKey) { toast('⚠️ 请先完成接口配置'); return; }
+  if (!state.evalResults.length) { toast('⚠️ 请先完成一次 v1 评测'); return; }
+
+  const btn = document.getElementById('generateV2Btn');
+  const prog = document.getElementById('v2PromptProgress');
+  btn.disabled = true;
+  prog.style.display = 'flex';
+
+  const payload = buildOptimizationPayload();
+  const prompt = `请根据以下 Prompt Eval 结果，生成一个改进后的 System Prompt v2。\n\n目标：\n1. 保留当前 Prompt 在高分用例上的优点。\n2. 优先修复低分和失败用例暴露的问题。\n3. 不要过拟合单个测试用例。\n4. 输出仍需适配同一任务。\n5. 如果启用了 Code Grader，要尽量满足其中的确定性约束。\n\n输入数据：\n${JSON.stringify(payload, null, 2)}\n\n输出要求：\n- 只返回新的 System Prompt 文本，不要解释。\n- 不要使用 Markdown 代码块。\n- 保持可直接粘贴到 System Prompt 输入框中。`;
+
+  try {
+    const result = (await callClaude(config, prompt, '你是一名擅长根据评测结果优化 System Prompt 的提示工程专家。')).replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, '')).trim();
+    document.getElementById('v2Prompt').value = result;
+    toast('✅ 已根据评测结果生成 v2 Prompt');
+  } catch (e) {
+    toast('❌ 生成失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    prog.style.display = 'none';
+  }
+}
+
+function sanitizeConfigForExport(config) {
+  return {
+    ...config,
+    apiKey: config?.apiKey ? '***' : '',
+  };
+}
+
+// ─── Scoreboard ───────────────────────────────────────────────────────────────
+function updateScoreboard(rate, graded) {
+  const total = state.testCases.length;
+  document.getElementById('sb-total').textContent = total;
+  document.getElementById('sb-graded').textContent = graded || '0';
+  if (rate !== undefined) {
+    document.getElementById('sb-pass').textContent = rate + '%';
+    document.getElementById('sb-pass-bar').style.width = rate + '%';
+  }
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+function exportResults() {
+  const data = {
+    task: document.getElementById('taskName').value,
+    config: sanitizeConfigForExport(getConfig()),
+    systemPrompt: document.getElementById('systemPrompt').value,
+    judgePrompt: document.getElementById('judgePrompt').value,
+    codeGraderScript: getCodeGraderScript(),
+    codeGraderEnabled: codeGraderEnabled(),
+    graderWeights: getEffectiveWeights(),
+    rubric: state.rubricItems,
+    testCases: state.testCases,
+    v1Results: state.evalResults,
+    v1Score: state.v1Score,
+    v2Results: state.v2Results,
+    v2Score: state.v2Score,
+    exportedAt: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `eval-report-${Date.now()}.json`;
+  a.click();
+  toast('✅ 报告已导出');
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+async function callClaude(config, user, system) {
+  const requestConfig = { ...DEFAULT_CONFIG, ...config };
+  const resp = await fetch(normalizeBaseUrl(requestConfig.baseUrl), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': requestConfig.apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: requestConfig.model,
+      max_tokens: requestConfig.maxTokens,
+      system,
+      messages: [{ role: 'user', content: user }],
+    })
+  });
+  if (!resp.ok) {
+    let message = resp.statusText;
+    try {
+      const err = await resp.json();
+      message = err.error?.message || err.message || message;
+    } catch (_) {
+      try {
+        message = await resp.text() || message;
+      } catch (_) {
+        // ignore read failure and keep status text
+      }
+    }
+    throw new Error(message);
+  }
+  const data = await resp.json();
+  return data.content.map(c => c.text || '').join('');
+}
+
+function scoreColor(ratio) {
+  if (ratio >= 0.7) return 'good';
+  if (ratio >= 0.5) return 'neutral';
+  return 'bad';
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+state.config = loadConfig();
+updateConfigIndicators(state.config);
+renderTestCases();
+renderRubricItems();
+updateJudgePrompt();
+document.getElementById('codeGraderScript')?.addEventListener('input', refreshWeightControls);
+document.getElementById('llmWeightInput')?.addEventListener('input', (event) => updateWeight('llm', event.target.value));
+refreshWeightControls();
+</script>
+</body>
+</html>
